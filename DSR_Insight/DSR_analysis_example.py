@@ -169,61 +169,6 @@ allbanks_eyecat_cull = [allbanks_eyecat_red[i] for i, j in
 allbanks_cnts_eyecull = [allbanks_cnts[i] for i, j in
                          enumerate(allbanks_eyecat_red) if j > 0]
 
-
-# ------------------
-# MAKE INTERACTIVE SLIDER PLOTS
-# ------------------
-# Interactive slider plots of group size
-# -----------
-def bank_slider(allbanks_cnts=allbanks_cnts, allbanks_bkind=allbanks_bkind,
-                banklist=banklist):
-    poss_cat = range(0, len(banklist))
-    cs = plt.cm.rainbow(np.linspace(0, 1, len(poss_cat)))
-    plt.figure()
-    sf.winslider(allbanks_cnts, allbanks_bkind, poss_cat, banklist, cs,
-                 'Banks & Group Size')
-
-
-def bar_bank_slider(allbanks_cnts=allbanks_cnts, allbanks_bkind=allbanks_bkind,
-                    banklist=banklist):
-    poss_cat = range(0, len(banklist))
-    cs = plt.cm.rainbow(np.linspace(0, 1, len(poss_cat)))
-    plt.figure()
-    sf.barslider(allbanks_cnts, allbanks_bkind, poss_cat, banklist, cs,
-                 'Banks & Group Size')
-
-
-# Make interactive slider plots of eye color
-# ------------
-def eye_slider():
-    poss_cat = range(0, 6)
-    cs = ['gray', 'cornflowerblue', 'sage', 'darkkhaki', 'sienna', 'mediumpurple']
-    plt.figure()
-    sf.winslider(allbanks_cnts, allbanks_eyecat_red, poss_cat, eye_lab_red,
-                 cs, 'Eye Color & Group Size')
-
-
-# Make interactive slider plot of eye color,
-# removing donors with no reported value
-def eye_slider_cull():
-    poss_cat = range(1, 6)
-    cs = ['cornflowerblue', 'sage', 'darkkhaki', 'sienna', 'mediumpurple']
-    plt.figure()
-    sf.winslider(allbanks_cnts_eyecull, allbanks_eyecat_cull, poss_cat,
-                 eye_lab_red[1:], cs, 'Eye Color & Group Size, reported only')
-
-
-# Make interactive slider plot of eye color,
-# removing donors with no reported value
-def bar_eye_slider_cull():
-    poss_cat = range(1, 6)
-    cs = ['cornflowerblue', 'sage', 'darkkhaki', 'sienna', 'mediumpurple']
-    plt.figure()
-    sf.barslider(allbanks_cnts_eyecull, allbanks_eyecat_cull, poss_cat,
-                 eye_lab_red[1:], cs, 'Eye Color & Group Size, reported only')
-
-
-
 # ----------
 # NLP Description, detect donor similarity, beginning steps...
 # ----------

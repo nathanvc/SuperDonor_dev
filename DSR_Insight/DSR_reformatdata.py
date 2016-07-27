@@ -13,8 +13,6 @@ import itertools as it
 from nltk.stem.porter import PorterStemmer
 from nltk.corpus import stopwords
 import scipy
-import pint
-
 
 # -----------
 # Calculate female/male offspring counts
@@ -398,7 +396,8 @@ def parse_weight(wt_list):
  
 
 # -------------
-# Arrange count-per donor data into a list of lists for plotting
+# Arrange count-per donor data, bank id, individual donor ids, offpring birth
+# year into a list of lists for plotting/reference.
 # lists are appended in order of banklist
 # --------------
 def cnts_list(Counts, banklist):
