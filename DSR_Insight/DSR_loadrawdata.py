@@ -1,10 +1,11 @@
 """
 Created on 2-12-2016
+Last update 7-26-2016
 
 @author: %nathanvc
 
 Pilot analysis of data from the donor sibling registry
-Sample set of 6 banks: Xytex, Fairfax, CCB, TSBC, Repromed, NECC
+Functions to load raw data files
 """
 
 import pandas as pd
