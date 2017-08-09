@@ -10,8 +10,6 @@ Scraping functions for the donor sibling registry: url_ = 'https://www.donorsibl
 
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-import spermBank as sbnk
 from bs4 import BeautifulSoup
 from urllib.request import urlopen
 
@@ -242,7 +240,13 @@ def make_bank_df(soup):
     info_df['bankname']=bankname
     info_df['bankid']=bankid
     
-    # fill missing donor ids
+    # make unknown id's distinct    
+    unk = info_df[info_df['don_id'].str.lower() == 'unknown'].reset_index(drop=True)
+    for i, row in unk.iterrows():
+        row['don_id']=row['don_id'] + str(i)
+    info_df.loc[info_df['don_id'].str.lower() == 'unknown',['don_id']] = unk['don_id']
+    
+    # fill in missing donor ids
     info_df['don_id']=info_df['don_id'].replace('nan', np.nan).fillna(method='ffill')
 
     # split offspring entries and duplicate rows, to make one row per offspring
@@ -350,16 +354,16 @@ def load_multi_bank(idlist, dtype):
         
     bank_meta_df = pd.concat(bm).reset_index(drop=True)
     bank_meta_df['dontype']=dtype
-    bank_df = pd.concat(bdata).reset_index(drop=True)
-    bank_df['dontype']=dtype
+    orig_df = pd.concat(bdata).reset_index(drop=True)
+    orig_df['dontype']=dtype
         
-    return bank_meta_df, bank_df
+    return bank_meta_df, orig_df
 
 # convert bank_df to dataframe organized by individual level (donor/offspring)
-def make_indiv_df(bank_df):
-    indiv_df=bank_df[['don_id', 'don_text', 'posted_by', 'offsp', 'usID', 
+def make_indiv_df(orig_df):
+    indiv_df=orig_df[['don_id', 'don_text', 'posted_by', 'offsp', 'usID', 
                          'dpID', 'update', 'msg_date', 'lname', 'bankname', 'bankid', 'bankdonorid', 'dontype']].copy()
-    indiv_df['len_offsp']=bank_df['offsp'].apply(lambda x: len(x))
+    indiv_df['len_offsp']=orig_df['offsp'].apply(lambda x: len(x))
     indiv = indiv_df[indiv_df['len_offsp']<2].reset_index()
     indiv['offsp_sing']=indiv['offsp'].apply(lambda x: x[0] if x else '')
     indiv_mult = indiv_df[indiv_df['len_offsp']>1].reset_index()
@@ -391,7 +395,56 @@ def make_indiv_df(bank_df):
     indiv = indiv.drop('offsp', axis=1)
     
     # convert dates to datetime format
-    indiv_df['update']=pd.to_datetime(indiv_df['update'])
-    indiv_df['msg_date']=pd.to_datetime(indiv_df['msg_date'])
+    indiv['update']=pd.to_datetime(indiv['update'])
+    indiv['msg_date']=pd.to_datetime(indiv['msg_date'])
 
+    # reset index
+    indiv = indiv.reset_index(drop=True)
+    
     return indiv
+
+# organize indivdf and offspdf into donor df
+# This should work for egg and sperm donors but has only been tested for sperm
+def make_don_df(orig_df, indiv_df):
+
+    # remove donors and children of sperm donors from raw dataframe and individual dataframe
+    offsp_df = orig_df.copy()
+    offsp_df = offsp_df[(offsp_df['num_kids']>0) & (offsp_df['posted_by']!='Donor')]
+    trimindiv_df = indiv_df[(indiv_df['num_kids']>0) & (indiv_df['posted_by']!='Donor')]
+
+    # basic id info for each donor, one line per donor
+    don_df=offsp_df[['bankdonorid','don_id','bankid','bankname','dontype']].drop_duplicates()
+
+    # build text matrix, add to donor df
+    offsp_df['don_text']=offsp_df['don_text'].apply(lambda x: x.replace('Ph.D', 'PhD')).apply(
+                         lambda x: x.replace('M.S.', 'MS')).apply(lambda x: x.replace('A.A.', 'AA'))
+    offsp_df['don_text_list']=offsp_df['don_text'].apply(lambda x: x.split('.')).apply(
+                              lambda x: list(filter(None, list(map(str.strip, x))))) 
+    don_text=offsp_df[['bankdonorid','don_text_list']].groupby('bankdonorid').sum().reset_index()
+    don_text['don_text_set'] = don_text['don_text_list'].apply(lambda x: list(set(x)))
+    don_df = pd.merge(don_df, don_text, on='bankdonorid')
+
+    # counts children of each type per donor (excluding donors own children), one line per donor, average over offspring
+    don_offspcnt = offsp_df[['bankdonorid','num_girl','num_boy','num_child','num_kids']].groupby(
+                   'bankdonorid').sum().reset_index()
+    don_df = pd.merge(don_df, don_offspcnt, on='bankdonorid')
+
+    # calculate average birth year, update year and msg year per donor, max-min year
+    don_birthyear = trimindiv_df[['bankdonorid','birthyear']].dropna().groupby('bankdonorid').mean().reset_index() 
+    don_birthyear = pd.merge(don_birthyear, trimindiv_df[['bankdonorid','birthyear']]
+                         .groupby('bankdonorid').min().reset_index().rename(columns = {'birthyear': 'birthmin'}),
+                         on = 'bankdonorid')
+    don_birthyear = pd.merge(don_birthyear, trimindiv_df[['bankdonorid','birthyear']]
+                         .groupby('bankdonorid').max().reset_index().rename(columns = {'birthyear': 'birthmax'}),
+                         on = 'bankdonorid')
+    don_birthyear['birthyeardiff'] = don_birthyear['birthmax']-don_birthyear['birthmin']
+    don_df = pd.merge(don_df, don_birthyear, on='bankdonorid', how='left')
+
+    # calculate average message and update years (from orig df), average over listings not offspring
+    dates_df = offsp_df[['bankdonorid','update','msg_date']].copy()
+    dates_df['update_avgyr']=pd.to_datetime(dates_df['update']).dt.year
+    dates_df['msg_avgyr']=pd.to_datetime(dates_df['msg_date']).dt.year
+    dates_df = dates_df[['bankdonorid', 'update_avgyr', 'msg_avgyr']].groupby('bankdonorid').mean().reset_index()
+    don_df = pd.merge(don_df, dates_df, on='bankdonorid')
+    
+    return don_df
